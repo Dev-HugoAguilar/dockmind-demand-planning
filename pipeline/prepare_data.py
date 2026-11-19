@@ -1,6 +1,7 @@
 """Fixture reproducible: ventas sintéticas, pronóstico estacional y backtest sin fuga."""
 import json, math, random
 from pathlib import Path
+RAIZ=Path(__file__).resolve().parents[1]
 rng=random.Random(37)
 products=[('A01','Café de especialidad','Alimentos',180,95,430,2,24),('A02','Bebida de avena','Alimentos',260,32,620,3,48),('A03','Proteína vegetal','Nutrición',95,210,240,4,12),('A04','Electrolitos','Nutrición',220,28,410,2,36),('A05','Filtro de agua','Hogar',65,340,190,5,6),('A06','Botella térmica','Hogar',110,150,310,3,12),('A07','Barra energética','Alimentos',310,19,700,2,60),('A08','Vitamina D','Nutrición',125,85,290,4,24)]
 catalog={
@@ -29,5 +30,6 @@ total=sum(sum(r['sales'][-52:])*r['price'] for r in rows);cumulative=0
 for r in ranked:
  r['abc']='A' if cumulative<.8 else 'B' if cumulative<.95 else 'C'
  cumulative+=sum(r['sales'][-52:])*r['price']/total
-out=Path(__file__).parent/'runtime'/'data.json';out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps({'label':'Fixture sintético reproducible · semilla 37','history':'104 semanas','horizon':12,'products':rows},ensure_ascii=False))
+out=RAIZ/'web'/'data.json';out.parent.mkdir(parents=True,exist_ok=True);out.write_text(json.dumps({'label':'Fixture sintético reproducible · semilla 37','history':'104 semanas','horizon':12,'products':rows},ensure_ascii=False),encoding='utf-8',newline='\n')
 print(f'{len(rows)} SKU · {len(rows)*104} observaciones sintéticas · 26 cortes de backtest por SKU')
+print(f'Escrito: {out}')

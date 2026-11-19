@@ -93,19 +93,21 @@ docs/                     Auditoría, referencias y diseño
 
 ## Reproducir
 
-Python 3.12 y `pip install -r pipeline/requirements.txt`; ejecutar desde
-`pipeline/`:
+Python 3.12 y `pip install -r pipeline/requirements.txt`; los scripts resuelven
+rutas desde la raíz del repositorio, así que se ejecutan desde ahí:
 
-1. `python prepare_data.py` genera el catálogo en `web/data.json`. Sustituye los
-   resultados, así que debe correr **antes** del entrenamiento.
-2. `python download_benchmark.py` obtiene el CSV público (requiere red). El archivo
-   crudo no se redistribuye.
-3. `python train_models.py research/Walmart.csv` entrena ambos conjuntos y
+1. `python pipeline/prepare_data.py` genera el catálogo en `web/data.json`.
+   Sustituye los resultados, así que debe correr **antes** del entrenamiento.
+2. `python pipeline/download_benchmark.py` obtiene el CSV público (requiere red,
+   paso opcional). El archivo crudo no se redistribuye.
+3. `python pipeline/train_models.py research/Walmart.csv` entrena ambos conjuntos y
    actualiza `web/data.json`, `research/model_report.json` y `models/`.
-4. `python build.py` regenera el prototipo autocontenido.
+4. `python pipeline/build.py` regenera el prototipo autocontenido en `legacy/`.
 
-Para trabajar solo con datos sintéticos, `python train_models.py` sin argumento
-omite el benchmark público. **No hace falta reentrenar para servir la demo.**
+Para trabajar solo con datos sintéticos, `python pipeline/train_models.py` sin
+argumento omite el benchmark público. **No hace falta reentrenar para servir la
+demo.** El detalle del orden y de las salidas está en
+[`pipeline/README.md`](pipeline/README.md).
 
 ## Verificación
 
