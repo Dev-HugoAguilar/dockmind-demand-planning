@@ -9,7 +9,12 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.linear_model import Ridge
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
-P=Path(__file__).parent
+P=Path(__file__).resolve().parents[1]
+WEB=P/'web'
+MODELS=P/'models'
+RESEARCH=P/'research'
+DATOS=WEB/'data.json'
+REPORTE=RESEARCH/'model_report.json'
 NAMES={'seasonal':'Estacional 52','holt':'Holt tendencia','ridge':'Ridge directo','forest':'Random Forest directo'}
 def feature(y,t):
  past=y[:t];scale=max(1,float(np.mean(past[-8:])));lags=[past[-k]/scale for k in [1,2,4,8,13,26,52]];means=[np.mean(past[-k:])/scale for k in [4,8,13,26]]
@@ -42,7 +47,7 @@ def run(Y,label):
    pred,scale=predict_all(Y,cut);actual=Y[:,cut:cut+12]
    records[split].append((cut,pred,actual,scale));print(label,split,cut,flush=True)
  def wape(rows,key):return float(sum(np.abs(pred[key]-a).sum() for _,pred,a,_ in rows)/sum(a.sum() for _,_,a,_ in rows)*100)
- winner=min(NAMES,key=lambda k:wape(records['cal'],k));pred,scale=predict_all(Y,n,P/"models"/("walmart" if label.startswith("Ventas") else "synthetic"))
+ winner=min(NAMES,key=lambda k:wape(records['cal'],k));pred,scale=predict_all(Y,n,MODELS/("walmart" if label.startswith("Ventas") else "synthetic"))
  metrics=[]
  for key,name in NAMES.items():
   for h in [1,4,8,12]:
@@ -58,13 +63,17 @@ def run(Y,label):
   errors={key:np.concatenate([(ps[key][i]-a[i]) for _,ps,a,_ in records['test']]) for key in NAMES};actual=np.concatenate([a[i] for _,_,a,_ in records['test']]);models={key:np.round(v[i],2).tolist() for key,v in pred.items()};intervals={key:[{'lo':round(max(0,float(pred[key][i,h]+quant[h][0]*scale[i])),2),'hi':round(max(0,float(pred[key][i,h]+quant[h][1]*scale[i])),2)} for h in range(12)] for key in [winner]}
   per.append({'models':models,'interval':intervals[winner],'mae':round(float(np.mean(np.abs(errors[winner]))),2),'wape':round(float(np.sum(np.abs(errors[winner]))/actual.sum()*100),2),'baseline':round(float(np.sum(np.abs(errors['seasonal']))/actual.sum()*100),2),'calibration_errors':np.round(np.concatenate([(a[i]-ps[winner][i])/np.maximum(ps[winner][i],1) for _,ps,a,_ in records['cal']]),4).tolist(),'errors':np.round(errors[winner]/np.maximum(actual,1)*100,2).tolist()})
  return {'label':label,'winner':winner,'names':NAMES,'metrics':metrics,'validation':{k:round(wape(records['cal'],k),2) for k in NAMES},'test':{k:round(wape(records['test'],k),2) for k in NAMES},'coverage':coverage,'calibration_origins':cal,'test_origins':test,'n':n,'series':len(Y),'per':per,'note':'Cortes solapados: no son muestras independientes. Selección por WAPE global de validación, luego evaluación test. Intervalo empírico agrupado con objetivo nominal 80%; cobertura test publicada, sin garantía por SKU.'}
-d=json.loads((P/'runtime'/'data.json').read_text());synth=run(np.array([p['sales'] for p in d['products']],float),'Catálogo sintético · unidades')
+d=json.loads(DATOS.read_text(encoding='utf-8'));synth=run(np.array([p['sales'] for p in d['products']],float),'Catálogo sintético · unidades')
 for p,stats in zip(d['products'],synth.pop('per')):
  p['models']=stats['models'];p['forecast']=[round(v) for v in stats['models'][synth['winner']]];p['interval']=stats['interval'];p['mae']=stats['mae'];p['wape']=stats['wape'];p['baseline_wape']=stats['baseline'];p['errors']=stats['errors'];p['calibration_errors']=stats['calibration_errors'];p['cv']=round(float(np.std(p['sales'][-52:])/np.mean(p['sales'][-52:])),3)
 report={'synthetic':synth,'python':platform.python_version(),'sklearn':sklearn.__version__}
-raw=Path(sys.argv[1]) if len(sys.argv)>1 else None
-if raw and raw.exists():
+raw=Path(sys.argv[1]).expanduser() if len(sys.argv)>1 else None
+if raw is not None and not raw.is_file():
+ raise FileNotFoundError(f'CSV del benchmark no encontrado: {raw.resolve()} (ruta opcional; omitir para entrenar solo el catálogo sintético)')
+if raw is not None:
  frame=pd.read_csv(raw);frame['Date']=pd.to_datetime(frame['Date'],dayfirst=True);wide=frame.pivot(index='Date',columns='Store',values='Weekly_Sales').sort_index();assert not wide.isna().any().any();public=run(wide.to_numpy().T,'Ventas semanales por tienda · importe reportado en USD');public['source']='https://github.com/GonzaloBP/Almacen-de-datos-Walmart/blob/main/Walmart.csv';public['sha256']=hashlib.sha256(raw.read_bytes()).hexdigest();public['period']=[str(wide.index[0].date()),str(wide.index[-1].date())];public['example']={'name':'Tienda '+str(wide.columns[0]),'history':wide.iloc[-20:,0].tolist(),'forecast':public['per'][0]['models'][public['winner']],'interval':public['per'][0]['interval']};public.pop('per');report['public']=public
 report['model_design']={'ridge':'Regresión Ridge multisalida, alpha=20 y estandarización solo en entrenamiento','forest':'RandomForestRegressor multisalida, 100 árboles, profundidad 9, hoja mínima 5, semilla 37','holt':'Suavizado lineal de Holt, alpha=.25, beta=.05, sin ajuste en test','seasonal':'Misma semana del año anterior','features':'Rezagos 1,2,4,8,13,26,52; medias pasadas 4,8,13,26; dispersión, tendencia corta y seno/coseno semanal. Normalización por media de últimas 8 semanas disponible al corte. Targets directos a 12 horizontes; cada ventana termina antes del corte.'}
-d['ml']=report;(P/'runtime'/'data.json').write_text(json.dumps(d,ensure_ascii=False));(P/'research/model_report.json').write_text(json.dumps(report,ensure_ascii=False,indent=2))
+d['ml']=report;DATOS.write_text(json.dumps(d,ensure_ascii=False),encoding='utf-8',newline='\n');REPORTE.parent.mkdir(parents=True,exist_ok=True);REPORTE.write_text(json.dumps(report,ensure_ascii=False,indent=2),encoding='utf-8',newline='\n')
+print(f'Escrito: {DATOS}')
+print(f'Escrito: {REPORTE}')
 print('GANADORES', {k:report[k]['winner'] for k in ['synthetic','public'] if k in report},flush=True)

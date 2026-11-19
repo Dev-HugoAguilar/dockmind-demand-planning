@@ -162,7 +162,7 @@
     "series": 48,
     "note": "Cortes solapados: no son muestras independientes. Selección por WAPE global de validación, luego evaluación test. Intervalo empírico agrupado con objetivo nominal 80%; cobertura test publicada, sin garantía por SKU."
   },
-  "python": "3.12.14",
+  "python": "3.12.6",
   "sklearn": "1.8.0",
   "public": {
     "label": "Ventas semanales por tienda · importe reportado en USD",
